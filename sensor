@@ -1,0 +1,79 @@
+/*光敏传感器*/
+#include "hal_defs.h"
+#include "hal_cc8051.h"
+#include "hal_int.h"
+#include "hal_mcu.h"
+#include "hal_board.h"
+#include "hal_led.h"
+#include "hal_rf.h"
+#include "basic_rf.h"
+#include "hal_uart.h"
+#include "UART_PRINT.h"
+#include "TIMER.h"
+#include "get_adc.h"
+#include "sh10.h"
+#include "get_swsensor.h"
+#include <string.h>
+
+#define MAX_SEND_BUF_LEN 128
+#define MAX_RECV_BUF_LEN 128
+static uint8 pTxData[MAX_SEND_BUF_LEN];//¶¨ÒåÎÞÏß·¢ËÍ»º³åÇøµÄ´óÐ¡
+static uint8 pRxData[MAX_RECV_BUF_LEN];//¶¨ÒåÎÞÏß½ÓÊÕ»º³åÇøµÄ´óÐ¡
+
+#define MAX_UART_SEND_BUF_LEN 128
+#define MAX_UART_RECV_BUF_LEN 128
+uint8 uTxData[MAX_UART_SEND_BUF_LEN];//¶¨Òå´®¿Ú·¢ËÍ»º³åÇøµÄ´óÐ¡
+uint8 uRxData[MAX_UART_RECV_BUF_LEN];//¶¨Òå´®¿Ú½ÓÊÕ»º³åÇøµÄ´óÐ¡
+
+uint16 uTxlen = 0;//
+uint16 uRxlen = 0;//
+
+#define RF_CHANNEL 16//ÆµµÀ11-26
+#define PAN_ID 0X6232//ÍøÂçID
+#define MY_ADDR 0x1234//±¾»úÄ£¿éµØÖ·
+#define SEND_ADDR 0x55ac//·¢ËÍµØÖ·
+
+static basicRfCfg_t basicRfConfig;//ÎÞÏßRF³õÊ¼»¯
+uint8 APP_SEND_DATA_FLAG;
+
+void ConfigRf_Init(void)
+{
+  basicRfConfig.panId = PAN_ID;//zigbeeµÄIDºÅÉèÖÃ
+  basicRfConfig.channel = RF_CHANNEL;//zigbeeµÄÆµµÀÉèÖÃ
+  basicRfConfig.myAddr =MY_ADDR;//ÉèÖÃ±¾»úµØÖ·
+  basicRfConfig.ackRequest = TRUE;//Ó¦´ðÐÅºÅ
+  while(basicRfInit(&basicRfConfig) == FAILED);//¼ì²âzigbeeµÄ²ÎÊýÊÇ·ñÅäÖÃ³É¹¦
+  basicRfReceiveOn();//´ò¿ªRF
+}
+
+void main()
+{
+  uint16 sensor_val;
+  uint16 len=0;
+  halBoardInit();//Ä£¿éÏà¹Ø×ÊÔ´µÄ³õÊ¼»¯
+  ConfigRf_Init();//ÎÞÏßÊÕ·¢²ÎÊýµÄÅäÖÃ³õÊ¼»¯
+  halLedSet(1);
+  halLedSet(2);
+  Timer4_Init();
+  Timer4_On();
+  while(1)
+  {
+    APP_SEND_DATA_FLAG=GetSendDataFlag();
+    if(APP_SEND_DATA_FLAG==1)//¶¨Ê±Ê±¼äµ½
+    {
+      /*´«¸ÐÆ÷²É¼¯£¬´¦Àí£º¿ªÊ¼*/
+#if defined (GD_SENDOR)//¹âÕÕ´«¸ÐÆ÷
+      sensor_val=get_adc();//È¡Ä£ÄâµçÑ¹
+      //°Ñ²É¼¯³öµÄÊý¾Ý×ª»»³É×Ö·û´®£¬ÒÔ±ãÓÚÔÚ´®¿ÚÉÏÏÔÊ¾¹Û²ì
+      printf_str(pTxData,"%d%d",sensor_val/100+30,sensor_val%100+30);
+#endif
+      halLedToggle(3);//ÂÌµÆÈ¡·´£¬ÎÞÏß·¢ËÍÖ¸Ê¾
+      //°ÑÊý¾ÝÍ¨¹ýzigbee·¢ËÍ³öÈ¥
+      basicRfSendPacket(SEND_ADDR,pTxData,strlen(pTxData));
+      //Êý¾ÝÒ²·¢µ½±¾µØ´®¿Ú£¬±ãÓÚµ÷ÊÔ
+      halUartWrite(pTxData,strlen(pTxData));
+      Timer4_On();//´ò¿ª¶¨Ê±
+      /*´«¸ÐÆ÷²É¼¯£¬´¦Àí£º½áÊø*/
+    }
+  }
+}
