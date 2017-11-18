@@ -1,0 +1,235 @@
+
+package com.example.gzcx;
+
+import com.newland.jni.Modbus;
+import com.newland.jni.OnDataReceivedListener;
+import com.newland.jni.SerialPort;
+
+import android.support.v7.app.ActionBarActivity;
+import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.RotateAnimation;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+public class MainActivity extends ActionBarActivity {
+
+	private String strReceiveData = ""; // 串口接收的数据
+	private Button btnCloseCurtain, btnHangers, btnQuit, btnopenCurtain,
+			btnopenHangers;
+	private TextView tvTemp, tvTempValue, tvLimit1, tvTemp1, tvTemp1Status,
+			tvLimit2;
+	private EditText etLimitValue2, etLimitValue1;
+	private ImageView img,img1;
+	char[] msg={'0'};
+
+	SerialPort newPort = new SerialPort(); // 定义一个串口
+	Modbus newModbus =new Modbus();//定义一个Modbis串口
+	
+	Handler handler=new Handler();   //new一个Handler
+	/**********************每隔500毫秒读取Moudbus的Com1口的数据*******/
+	Runnable runnable=new Runnable() {
+		
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			handler.postDelayed(runnable, 500);
+			ReadModBus();
+			
+		}
+	};
+	
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+		initComponent(); // 调用初始化界面函数
+		/**************打开Moudbus的Com1串口**************/
+		int com1=newModbus.openPort(1, 0, 3);
+		if (com1<=0) {
+			Toast.makeText(this, "串口1连接失败", Toast.LENGTH_SHORT).show();
+		}else {
+			handler.post(runnable);
+		}
+		
+		/*************************打开com3串口***********************/
+		int com = newPort.openPort(3, 0, 5);
+		if (com <= 0) {
+			Toast.makeText(this, "串口3连接失败", Toast.LENGTH_SHORT).show();
+		} else {
+			newPort.setCommReceivedMode(true); // 设置串口通信模式为相应模式
+			newPort.setOnDataReceivedListener(new OnDataReceivedListener() {
+
+				@Override
+				public void onDataReceived(String arg0) {
+					// TODO Auto-generated method stub
+					handleReceivedData(arg0);
+				}
+			});
+		}
+
+	}
+
+	/******************************** 界面初始化函数 *********************/
+	private void initComponent() {
+
+		btnCloseCurtain = (Button) findViewById(R.id.btnCloseCurtain);
+		btnHangers = (Button) findViewById(R.id.btnHangers);
+		btnopenCurtain = (Button) findViewById(R.id.btnopenCurtain);
+		btnopenHangers = (Button) findViewById(R.id.btnopenHangers);
+		btnQuit = (Button) findViewById(R.id.btnQuit);
+		tvTemp = (TextView) findViewById(R.id.tvTemp);
+		tvTempValue = (TextView) findViewById(R.id.tvTempValue);
+		tvLimit1 = (TextView) findViewById(R.id.tvLimit1);
+		etLimitValue1 = (EditText) findViewById(R.id.etLimitValue1);
+		tvTemp1 = (TextView) findViewById(R.id.tvTemp1);
+		tvTemp1Status = (TextView) findViewById(R.id.tvTemp1Status);
+		tvLimit2 = (TextView) findViewById(R.id.tvLimit2);
+		etLimitValue2 = (EditText) findViewById(R.id.etLimitValue2);
+		img = (ImageView) findViewById(R.id.img);
+		img1=(ImageView)findViewById(R.id.img1);
+
+	}
+
+	/******************************** 按钮监听函数 *********************/
+	public void myClick(View v) {
+		switch (v.getId()) {
+		case R.id.btnopenCurtain:   // 发送打开窗帘命令
+			if(tvTemp1Status.getText().toString().equals("窗帘关闭状态")){
+		  tvTemp1Status.setText("窗帘打开状态");
+		  msg[0]='1';
+		  newPort.sendCommand(msg);
+		  start();
+			}
+			break;
+		case R.id.btnCloseCurtain: // 发送关闭窗帘命令
+			if(tvTemp1Status.getText().toString().equals("窗帘打开状态")){
+				  tvTemp1Status.setText("窗帘关闭状态");
+				  msg[0]='1';
+				  newPort.sendCommand(msg);
+				  start1();
+					}
+			break;
+		case R.id.btnopenHangers: // 发送打开衣架的命令
+			msg[0]='3';
+			  newPort.sendCommand(msg);
+			  start3();
+			break;
+
+		case R.id.btnHangers: // 发送关闭衣架的命令
+			msg[0]='2';
+			  newPort.sendCommand(msg);
+			  start4();
+			break;
+		case R.id.btnQuit: // 退出程序
+			System.exit(0);
+			break;
+		}
+	}
+
+	/*************************** 读取串口数据 **************************/
+
+	protected void handleReceivedData(final String data) {
+		runOnUiThread(new Runnable() { // 通过runOnUiThread在线程中执行UI更新操作
+			public void run() {
+				String et1 = etLimitValue1.getText().toString().trim();
+				String et2 = etLimitValue2.getText().toString().trim();
+				Integer int1 = null;
+				Integer int2 = null;
+				Integer light=Integer.parseInt(data);
+				tvTempValue.setText(data);
+				
+				if(!et1.equals("")){
+					 int1= Integer.parseInt(et1);
+					 if(light>int1){
+							msg[0]='1'; //表示窗帘打开
+							newPort.sendCommand(msg);
+							tvTemp1Status.setText("窗帘打开状态");
+							start();
+						}
+						
+				}else{
+					Log.d("出错","");
+				}
+				
+				if(!et2.equals("")){
+					int2 = Integer.parseInt(et2);
+					if(light<int2){
+						msg[0]='1'; //表示窗帘关闭
+						newPort.sendCommand(msg);
+						tvTemp1Status.setText("窗帘关闭状态");
+						start1();
+						
+					}
+
+				}else {
+					Log.d("出错","");
+					
+				}
+				
+			}
+
+		});
+	}
+	/****************当接近传感器收到的数据为1的时候关闭窗帘***************/
+	private void ReadModBus(){
+		byte[] modDI=newModbus.getDIData();
+		if( modDI[2]==1) {
+			msg[0]='2'; //表示关闭窗帘,关闭衣架
+			newPort.sendCommand(msg);
+			stop();
+			stop1();
+		}
+	}
+	/****************打开窗帘电运行***************/
+	private void start(){
+        RotateAnimation animation = AnimationUtils.getRotateAnimation(0,360,50,50,50,50,1000,null);
+        LinearInterpolator lin = new LinearInterpolator();
+        animation.setRepeatCount(-1);
+        animation.setInterpolator(lin);
+        img.startAnimation(animation);
+    }
+	private void start1(){
+        RotateAnimation animation = AnimationUtils.getRotateAnimation(360,0,50,50,50,50,1000,null);
+        LinearInterpolator lin = new LinearInterpolator();
+        animation.setRepeatCount(-1);
+        animation.setInterpolator(lin);
+        img.startAnimation(animation);
+    }
+	/****************关闭窗帘电运行***************/
+    private void stop(){
+        RotateAnimation animation = AnimationUtils.getRotateAnimation(360,0,50,50,50,50,1000,null);
+        img.startAnimation(animation);
+    }
+    /****************打开衣架电运行***************/
+	private void start3(){
+        RotateAnimation animation = AnimationUtils.getRotateAnimation(0,360,50,50,50,50,1000,null);
+        LinearInterpolator lin = new LinearInterpolator();
+        animation.setRepeatCount(-1);
+        animation.setInterpolator(lin);
+        img1.startAnimation(animation);
+    }
+	private void start4(){
+        RotateAnimation animation = AnimationUtils.getRotateAnimation(0,360,50,50,50,50,1000,null);
+        LinearInterpolator lin = new LinearInterpolator();
+        animation.setRepeatCount(-1);
+        animation.setInterpolator(lin);
+        img1.startAnimation(animation);
+    }
+	
+	/****************关闭衣架电运行***************/
+    private void stop1(){
+        RotateAnimation animation = AnimationUtils.getRotateAnimation(360,0,50,50,50,50,1000,null);
+        img1.startAnimation(animation);
+    }
+}
+92.168.100.20 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBC7Nwuqlfo+14vACM5a9od0bPwenHkKrQea9zKbySxmfIz/HCUOZqcALB5bhYuHwCNpBpTV9ij00IQBrznPxntg=
